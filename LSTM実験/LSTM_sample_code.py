@@ -23,14 +23,13 @@ from chainer import reporter as reporter_module
 # Definition of a recurrent net for language modeling
 class RNNForLM(chainer.Chain):
 
-    def __init__(self, n_vocab, n_units, train=True):
+    def __init__(self, n_vocab, n_units):
         n_layer = 2
         super(RNNForLM, self).__init__(
             embed=L.EmbedID(n_vocab, n_units),
-            l1=L.NStepLSTM(n_layer, n_units, n_units, 0.5, True),
+            l1=L.NStepLSTM(n_layer, n_units, n_units, 0.5),
             l2=L.Linear(n_units, n_vocab),
         )
-        self.train = train
         self.n_layer = n_layer
         self.n_units = n_units
 
@@ -39,13 +38,8 @@ class RNNForLM(chainer.Chain):
         x_section = np.cumsum(x_len[:-1])
         ex = self.embed(F.concat(xs, axis=0))
         exs = F.split_axis(ex, x_section, 0, force_tuple=True)
-
-        xp = self.xp
-        volatile = xs[0].volatile
-        hx = chainer.Variable(xp.zeros((self.n_layer, len(xs), self.n_units), dtype=xp.float32), volatile=volatile)
-        cx = chainer.Variable(xp.zeros((self.n_layer, len(xs), self.n_units), dtype=xp.float32), volatile=volatile)
-        _, _, ys = self.l1(hx, cx, exs, train=self.train)
-        y = [self.l2(F.dropout(i, train=self.train)) for i in ys]
+        _, _, ys = self.l1(None, None, exs)
+        y = [self.l2(F.dropout(i)) for i in ys]
         return y
 
 
@@ -196,7 +190,8 @@ class BPTTEvaluator(training.extensions.Evaluator):
             observation = {}
             with reporter_module.report_scope(observation):
                 xs, ts = self.converter(batch, self.device)
-                eval_func([chainer.Variable(x, volatile='on') for x in xs], [chainer.Variable(t, volatile='on') for t in ts])
+                with chainer.using_config('train', False):
+                    eval_func([chainer.Variable(x) for x in xs], [chainer.Variable(t) for t in ts])
 
             summary.add(observation)
 
