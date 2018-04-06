@@ -26,13 +26,11 @@ class LSTM(chainer.Chain):
 
 	def __call__(self, x, t):
 #		import pdb; pdb.set_trace()
-		self.loss = None
 		_, _, h = self.l1(None, None, x)
-		h = [F.relu(self.l2(item)) for item in h]
-		y = [self.l3(item) for item in h]
-		for i in range(len(y)):
-			loss = F.mean_squared_error(y[i], t[i])
-			self.loss = loss if self.loss is None else self.loss + loss
+		h = F.stack([F.get_item(_h, -1) for _h in h])
+		h = F.relu(self.l2(h))
+		y = self.l3(h)
+		self.loss = F.mean_squared_error(y, t)
 		report({'loss': self.loss}, self)
 		return self.loss
 
@@ -51,7 +49,7 @@ class DataMaker(object):
         t = []
         for i in range(len(all_data) - length_of_sequence):
             sequences.append(all_data[i:i+length_of_sequence])
-            t.append(all_data[i+1:i+length_of_sequence+1])
+            t.append(all_data[i+length_of_sequence])
         return TupleDataset(sequences, t)
 
 
@@ -59,7 +57,7 @@ class DataMaker(object):
 def MyConverter(batch, device=None):
 
     x = [Variable(np.asarray(data[0]).astype(np.float32)[:, np.newaxis]) for data in batch]
-    t = [Variable(np.asarray(data[1]).astype(np.float32)[:, np.newaxis]) for data in batch]
+    t = Variable(np.asarray([data[1] for data in batch]).astype(np.float32)[:, np.newaxis])
 #    import pdb; pdb.set_trace()
     return x, t
 
@@ -89,7 +87,7 @@ if __name__ == "__main__":
     train_data = data[:harf]
     test_data = data[harf:]
 	# Iterator
-    batchsize = 300
+    batchsize = 100
     train_iter = iterators.SerialIterator(train_data, batchsize)
     test_iter = iterators.SerialIterator(test_data, batchsize, repeat = False, shuffle = False)
 #    import pdb; pdb.set_trace()
@@ -103,7 +101,8 @@ if __name__ == "__main__":
  
     start = time.time()
     
-    updater = training.StandardUpdater(train_iter, optimizer, MyConverter)
+#    updater = training.StandardUpdater(train_iter, optimizer, MyConverter)
+    updater = training.ParallelUpdater(train_iter, optimizer, MyConverter, devices={'main': -1, 'second': -2})
     trainer = training.Trainer(updater, (20, 'epoch'), out='result')
     trainer.extend(extensions.LogReport())
     trainer.extend(extensions.dump_graph('main/loss'))
@@ -111,7 +110,7 @@ if __name__ == "__main__":
     trainer.extend(extensions.Evaluator(test_iter, model, MyConverter), name= 'val')
     trainer.extend(extensions.PrintReport(['epoch', 'main/loss', 'val/main/loss', 'elapsed_time', 'lr']))
     trainer.extend(extensions.PlotReport(['main/loss', 'val/main/loss'], x_key = 'epoch', file_name= 'loss.png'))
-#    trainer.extend(extensions.ProgressBar())
+    trainer.extend(extensions.ProgressBar())
     trainer.run()
 
     end = time.time()

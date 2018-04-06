@@ -109,7 +109,7 @@ if __name__ == "__main__":
     trainer.extend(extensions.Evaluator(test_iter, model, MyConverter), name= 'val')
     trainer.extend(extensions.PrintReport(['epoch', 'main/loss', 'val/main/loss', 'elapsed_time', 'lr']))
     trainer.extend(extensions.PlotReport(['main/loss', 'val/main/loss'], x_key = 'epoch', file_name= 'loss.png'))
-    trainer.extend(extensions.ProgressBar())
+#    trainer.extend(extensions.ProgressBar())
     trainer.run()
 
     end = time.time()
