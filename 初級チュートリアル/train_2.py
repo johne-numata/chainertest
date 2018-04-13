@@ -39,7 +39,7 @@ optimizer.setup(net)
 
 updater = training.StandardUpdater(train_iter, optimizer)
 
-max_epoch = 10
+max_epoch = 20
 
 trainer = training.Trainer(updater, (max_epoch, 'epoch'), out='mnist_result')
 
@@ -47,12 +47,12 @@ import matplotlib.pyplot as plt
 import matplotlib
 from chainer.training import extensions
 trainer.extend(extensions.LogReport())
-trainer.extend(extensions.snapshot(filename='snapshot_epoch-{.updater.epoch}'))
-#trainer.extend(extensions.Evaluator(test_iter, net), name='val')
+#trainer.extend(extensions.snapshot(filename='snapshot_epoch-{.updater.epoch}'))
+trainer.extend(extensions.Evaluator(test_iter, net), name='val')
 trainer.extend(extensions.PrintReport(['epoch', 'main/loss', 'main/accuracy', 
-				'val/main/loss', 'val/main/accuracy', 'l1/W/data/std', 'elapsed_time']))
+				'val/main/loss', 'val/main/accuracy', 'elapsed_time']))
 #trainer.extend(extensions.PlotReport(['l1/W/data/std'], x_key='epoch', file_name='loss.png'))
 #trainer.extend(extensions.PlotReport(['main/loss', 'val/main/loss'], x_key='epoch', file_name='std.png'))
-trainer.extend(extensions.dump_graph('main/loss'))
+#trainer.extend(extensions.dump_graph('main/loss'))
 
 trainer.run()

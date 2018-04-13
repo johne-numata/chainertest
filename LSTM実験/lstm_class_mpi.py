@@ -7,6 +7,7 @@ from chainer import datasets, iterators, optimizers, serializers
 from chainer import Link, Chain, ChainList
 from chainer.training import extensions
 import numpy as np
+import chainermn
 
 
 # モデル定義
@@ -40,8 +41,12 @@ def MyConverter(batch, device=None):
 # Train実行
 def train(x_data, t_data, batchsize=128, layer=1, in_units=1, hidden_units=5, out_units=1):
 
+    comm = chainermn.create_communicator('naive')
+
 	# Iterator
     batchsize = batchsize
+    x_data = chainermn.scatter_dataset(x_data, comm)
+    t_data = chainermn.scatter_dataset(t_data, comm)
     train_iter = iterators.SerialIterator(x_data, batchsize)
     test_iter = iterators.SerialIterator(t_data, batchsize, repeat = False, shuffle = False)
 
@@ -49,17 +54,18 @@ def train(x_data, t_data, batchsize=128, layer=1, in_units=1, hidden_units=5, ou
     model = LSTM(in_units, hidden_units, out_units)
 
     # setup optimizer
-    optimizer = optimizers.Adam()
+    optimizer = chainermn.create_multi_node_optimizer(optimizers.Adam(), comm)
     optimizer.setup(model)
 
     updater = training.StandardUpdater(train_iter, optimizer, MyConverter)
-    trainer = training.Trainer(updater, (200, 'epoch'), out='result')
-    trainer.extend(extensions.LogReport())
-    trainer.extend(extensions.dump_graph('main/loss'))
-    trainer.extend(extensions.observe_lr())
-    trainer.extend(extensions.Evaluator(test_iter, model, MyConverter), name= 'val')
-    trainer.extend(extensions.PrintReport(['epoch', 'main/loss', 'val/main/loss', 'elapsed_time', 'lr']))
-    trainer.extend(extensions.PlotReport(['main/loss', 'val/main/loss'], x_key = 'epoch', file_name= 'loss.png'))
+    trainer = training.Trainer(updater, (20, 'epoch'), out='result')
+    if comm.rank == 0:
+        trainer.extend(extensions.LogReport())
+        trainer.extend(extensions.dump_graph('main/loss'))
+        trainer.extend(extensions.observe_lr())
+        trainer.extend(extensions.Evaluator(test_iter, model, MyConverter), name= 'val')
+        trainer.extend(extensions.PrintReport(['epoch', 'main/loss', 'val/main/loss', 'elapsed_time', 'lr']))
+        trainer.extend(extensions.PlotReport(['main/loss', 'val/main/loss'], x_key = 'epoch', file_name= 'loss.png'))
 #    trainer.extend(extensions.ProgressBar())
 
     trainer.run()
