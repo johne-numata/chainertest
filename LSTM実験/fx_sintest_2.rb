@@ -4,7 +4,8 @@ pyfrom 'chainer.datasets', import: :TupleDataset
 require 'numpy'
 np = Numpy
 
-PyCall.sys.path.append('C:\Users\D6113110\Desktop\chainer\LSTM実験')
+PyCall.sys.path.append(__dir__)
+#PyCall.sys.path.append('C:\Users\D6113110\Desktop\chainer\LSTM実験')
 pyimport 'lstm_class_2', as: :lstm
 
 MINI_BATCH_SIZE = 100

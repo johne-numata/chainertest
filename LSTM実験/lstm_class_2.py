@@ -7,12 +7,12 @@ from chainer import datasets, iterators, optimizers, serializers
 from chainer import Link, Chain, ChainList
 from chainer.training import extensions
 import numpy as np
-
+import os
 
 # モデル定義
 class LSTM(chainer.Chain):
 
-	def __init__(self, in_units=1, hidden_units=2, out_units=1):
+	def __init__(self, layers, in_units=1, hidden_units=2, out_units=1):
 		super(LSTM, self).__init__(
 			l1=L.NStepLSTM(1, in_units, hidden_units, 0.3),
 			l2=L.Linear(hidden_units, hidden_units),
@@ -24,6 +24,7 @@ class LSTM(chainer.Chain):
 		_, _, h = self.l1(None, None, x)
 		h = F.stack([F.get_item(_h, -1) for _h in h])
 		h = F.relu(self.l2(h))
+#		h = F.leaky_relu(self.l2(h))
 		y = self.l3(h)
 		self.loss = F.mean_squared_error(y, t)
 		report({'loss': self.loss}, self)
@@ -38,7 +39,7 @@ def MyConverter(batch, device=None):
 
 
 # Train実行
-def train(x_data, t_data, batchsize=128, layer=1, in_units=1, hidden_units=5, out_units=1):
+def train(x_data, t_data, batchsize=128, max_epoch=20, layers=1, in_units=1, hidden_units=5, out_units=1):
 
 	# Iterator
     batchsize = batchsize
@@ -46,14 +47,19 @@ def train(x_data, t_data, batchsize=128, layer=1, in_units=1, hidden_units=5, ou
     test_iter = iterators.SerialIterator(t_data, batchsize, repeat = False, shuffle = False)
 
     # setup model
-    model = LSTM(in_units, hidden_units, out_units)
+    model = LSTM(layers, in_units, hidden_units, out_units)
+    if os.path.exists("fx_model"):
+        serializers.load_npz('fx_model', model)
 
     # setup optimizer
     optimizer = optimizers.Adam()
+#    optimizer = optimizers.SMORMS3()
     optimizer.setup(model)
+    optimizer.add_hook(chainer.optimizer.Lasso(0.0005))
+
 
     updater = training.StandardUpdater(train_iter, optimizer, MyConverter)
-    trainer = training.Trainer(updater, (200, 'epoch'), out='result')
+    trainer = training.Trainer(updater, (max_epoch, 'epoch'), out='result')
     trainer.extend(extensions.LogReport())
     trainer.extend(extensions.dump_graph('main/loss'))
     trainer.extend(extensions.observe_lr())
@@ -64,3 +70,4 @@ def train(x_data, t_data, batchsize=128, layer=1, in_units=1, hidden_units=5, ou
 
     trainer.run()
 
+    serializers.save_npz('fx_model', model)
